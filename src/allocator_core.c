@@ -15,8 +15,8 @@
 
 static block_header_t *g_free_list_head = NULL;
 static block_header_t *g_block_list_head = NULL;
-static allocator_strategy_fn g_strategy_fn = NULL;
-static int g_allocator_initialized = 0;
+allocator_strategy_fn g_strategy_fn = NULL;
+int g_allocator_initialized = 0;
 /* Başlangıç heap adresi, tanılama ve raporlama amaçları için saklanır. */
 static void *g_heap_start = NULL;
 
@@ -312,58 +312,10 @@ block_header_t *allocator_default_find_free_block(size_t size)
 }
 
 /*
- * Kullanıcıdan gelen tahsis isteğini karşılayan temel akışı yürütür.
- * Uygun free blok varsa onu kullanır, yoksa heap'i büyüterek yeni blok üretir.
+ * my_malloc ve my_free, allocator_ops.c ve allocator_safety.c modüllerinde
+ * implementasyonları ile birlikte sunulmaktadır.
+ * Bu çekirdek modül, tahsis ve serbest bırakmanın altyapısını sağlar.
  */
-void *my_malloc(size_t size)
-{
-    size_t aligned_size;
-    block_header_t *selected_block;
-
-    if (size == 0) {
-        return NULL;
-    }
-
-    if (!g_allocator_initialized && allocator_init(ALLOCATOR_DEFAULT_POOL_SIZE) != 0) {
-        return NULL;
-    }
-
-    aligned_size = allocator_align_size(size);
-
-    /*
-     * Strateji fonksiyonu dışarıdan atanmışsa seçim bu fonksiyona devredilir.
-     * Aksi durumda varsayılan tarama yaklaşımı kullanılır.
-     */
-    if (g_strategy_fn != NULL) {
-        selected_block = g_strategy_fn(aligned_size);
-    } else {
-        selected_block = allocator_default_find_free_block(aligned_size);
-    }
-
-    if (selected_block != NULL) {
-        allocator_remove_from_free_list(selected_block);
-        selected_block->is_free = 0;
-        selected_block->magic = ALLOCATOR_MAGIC_ALLOC;
-        total_allocated_memory += selected_block->size;
-        active_block_count++;
-
-        /*
-         * Bu noktada blok yeniden kullanım için seçilmiş olur. Daha gelişmiş
-         * sürümlerde splitting gibi optimizasyonlar bu akışın üzerine eklenebilir.
-         */
-        return allocator_block_to_payload(selected_block);
-    }
-
-    selected_block = allocator_request_from_os(aligned_size);
-    if (selected_block == NULL) {
-        return NULL;
-    }
-
-    total_allocated_memory += selected_block->size;
-    active_block_count++;
-
-    return allocator_block_to_payload(selected_block);
-}
 
 /*
  * Yeni oluşturulan blokları tüm-heap zincirinin sonuna ekler.

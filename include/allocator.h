@@ -70,6 +70,8 @@ _Static_assert((ALLOCATOR_MIN_BLOCK_SIZE % ALLOCATOR_ALIGNMENT) == 0,
 extern size_t total_reserved_memory;
 extern size_t total_allocated_memory;
 extern size_t active_block_count;
+extern int g_allocator_initialized;
+extern allocator_strategy_fn g_strategy_fn;
 
 /* Allocator yaşam döngüsü ve yardımcı işlemler */
 int allocator_init(size_t initial_pool_size);
@@ -90,9 +92,20 @@ block_header_t *allocator_payload_to_block(void *ptr);
 
 /* Temel allocator API */
 void *my_malloc(size_t size);
-
 void my_free(void *ptr);
 void *my_calloc(size_t nmemb, size_t size);
+
+/* İşlemler ve strateji fonksiyonları */
+block_header_t *allocator_strategy_best_fit(size_t size);
+block_header_t *allocator_strategy_first_fit(size_t size);
+void allocator_split_block(block_header_t *block, size_t required_size);
+void allocator_coalesce_blocks(block_header_t *block);
+
+/* Hata kontrolü ve güvenlik */
+int allocator_is_valid_block(block_header_t *block);
+int allocator_is_block_allocated(block_header_t *block);
+void allocator_report_memory_leaks(void);
+void allocator_print_stats(void);
 
 #ifdef __cplusplus
 }
