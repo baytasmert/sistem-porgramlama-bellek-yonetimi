@@ -20,7 +20,6 @@ make test
 
 # Testlerden sonra terminal arayüzünü aç
 make run
-```
 
 # İstatistikleri görmek için
 allocator_print_stats();
