@@ -3,31 +3,30 @@
 Sistem Programlama 2026 - Bellek Yönetimi - Dönem Sonu Projesi
 
 ## 📌 Hızlı Başlangıç
+Linux ortamında:
 
 ```bash
-
 sudo apt update
 sudo apt install build-essential
 
-#Temizle
+# Projeyi temizle
 make clean
-
-#Testleri çalıştır:
-make test
 
 # Projeyi derle
 make
 
-# Terminal arayüzünü aç
-make run
+# Testleri arayüz açmadan çalıştır
+make test
 
-# Test programını çalıştır
-./test_allocator
+# Testlerden sonra terminal arayüzünü aç
+make run
+```
 
 # İstatistikleri görmek için
 allocator_print_stats();
 
 ```
+> Not: `allocator_print_stats();` terminal komutu değildir. C kodu içinde çağrılan bir fonksiyondur. İstatistikleri görmek için `make test` veya `make run` kullanılabilir.
 
 ## 📚 Dokümantasyon
 
@@ -41,9 +40,11 @@ Detaylı dokümantasyon `docs/` klasöründe:
 
 ## 🏗️ Proje Yapısı
 
-```
+```text
 ├── include/
-│   └── allocator.h                 # Ana header dosyası
+│   ├── allocator.h                 # Ana header dosyası
+│   ├── allocator_threadsafe.h      # Mutex ve thread-safe wrapper bildirimi
+│   └── allocator_terminal_ui.h     # Terminal arayüz bildirimi
 ├── src/
 │   ├── allocator_core.c            # Çekirdek altyapı (Person 1)
 │   │   ├─ allocator_init()
@@ -56,19 +57,22 @@ Detaylı dokümantasyon `docs/` klasöründe:
 │   │   ├─ my_calloc()
 │   │   ├─ allocator_strategy_first_fit()
 │   │   └─ allocator_strategy_best_fit()
-│   └── allocator_safety.c          # Hata kontrolü (Person 2)
-│       ├─ Double-free tespiti
-│       ├─ Invalid pointer tespiti
-│       ├─ allocator_report_memory_leaks()
-│       └─ allocator_print_stats()
-├── test/
+│   ├── allocator_safety.c          # Hata kontrolü (Person 2)
+│   │   ├─ Double-free tespiti
+│   │   ├─ Invalid pointer tespiti
+│   │   └─ allocator_report_memory_leaks()
+│   ├── allocator_debug.c           # Fragmentation ve istatistik raporu (Person 3)
+│   ├── allocator_threadsafe.c      # Thread-safe wrapper fonksiyonlar (Person 3)
+│   └── allocator_terminal_ui.c     # ANSI terminal arayüzü ve canlı demo (Person 3)
+├── tests/
 │   └── test_allocator.c            # Test programı (Person 3)
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── API.md
 │   └── IMPLEMENTATION.md
-└── Makefile
-```
+├── Makefile
+└── README.md
+``` 
 
 ## ✨ Temel Özellikler
 
@@ -91,6 +95,15 @@ Detaylı dokümantasyon `docs/` klasöründe:
 ### İstatistikler & Raporlama
 - ✅ **Bellek sızıntısı raporu** - Serbest bırakılmamış blokları listeler
 - ✅ **Kapsamlı istatistikler** - Fragmentation, kullanım oranı, vb.
+- ✅ En büyük serbest blok bilgisi
+- ✅ Serbest/tahsisli blok sayıları
+- ✅ Kullanım oranı
+
+### Terminal Arayüzü
+- ✅ Harici grafik kütüphanesi yoktur
+- ✅ ANSI kaçış kodlarıyla sabit ekranlı TUI
+- ✅ Renkli bellek haritası
+- ✅ Canlı demo thread'i ile arka planda `my_malloc` / `my_free`
 
 ## 💻 Kullanım Örneği
 
@@ -136,7 +149,21 @@ int main() {
 |------|------------|-------|
 | **Person 1** | Çekirdek allocator | ✅ Tamamlandı |
 | **Person 2** | Tahsis stratejileri, free, calloc, hata kontrol | ✅ Tamamlandı |
-| **Person 3** | Thread safety (mutex), test, Makefile | ⏳ Yapılacak |
+| **Person 3** | Thread safety (mutex), test, Makefile, terminal arayüzü | ✅ Tamamlandı |
+
+### Person 1 - Tamamlanan Görevler
+
+✅ `block_header_t` metadata yapısının tasarlanması  
+✅ `allocator.h` ortak header dosyasının hazırlanması  
+✅ `sbrk` ile işletim sisteminden başlangıç heap havuzu alınması  
+✅ `allocator_init()` ile allocator başlangıç durumunun kurulması  
+✅ Serbest blok listesi veri yapısının kurulması  
+✅ Free list'e blok ekleme ve listeden blok çıkarma fonksiyonları  
+✅ Heap üzerindeki tüm blokları takip eden block list yapısı  
+✅ Kullanıcı pointer'ı ile block header arasındaki pointer aritmetiği  
+✅ `allocator_block_to_payload()` ve `allocator_payload_to_block()` yardımcı fonksiyonları  
+✅ Varsayılan first-fit arama altyapısı (`allocator_default_find_free_block`)  
+✅ İşletim sisteminden ek bellek isteme altyapısı (`allocator_request_from_os`)  
 
 ### Person 2 - Tamamlanan Görevler
 
@@ -150,6 +177,17 @@ int main() {
 ✅ Invalid pointer tespiti  
 ✅ Bellek sızıntısı raporu (`allocator_report_memory_leaks()`)  
 ✅ İstatistikler (`allocator_print_stats()`)  
+
+### Person 3 - Tamamlanan Görevler
+
+✅ `pthread_mutex_t allocator_mutex` ile thread-safe wrapper katmanı  
+✅ Fragmentation, en büyük serbest blok ve kullanım oranı raporu  
+✅ `tests/test_allocator.c` test programı  
+✅ Çok threadli allocation/free testi  
+✅ Kısa performans ölçümü  
+✅ Makefile  
+✅ ANSI terminal arayüzü  
+✅ Canlı demo thread'i 
 
 ## 🔧 Yerleştirme Stratejileri
 
@@ -196,37 +234,97 @@ Free öncesi:    [serbest][KULLANILAN][serbest]
 Free sonrası:   [======= Birleştirilmiş =======]
 ```
 
+## 🖥️ Terminal Arayüzü
+
+Arayüzü açmak için:
+
+```bash
+make run
+```
+
+Komutlar:
+
+```text
+1  Gösterge paneli
+2  Bellek haritası
+3  Kayıtlar ve sızıntılar
+a  my_malloc(128)
+f  son arayüz tahsisini my_free ile bırak
+d  canlı demo thread'ini başlat/durdur
+q  çıkış
+```
+
+Canlı demo için önerilen akış:
+
+```text
+d  demoyu başlat
+2  bellek haritasını izle
+1  gösterge paneline dön
+d  demoyu durdur
+q  çık
+```
+
+
 ## ⚠️ Bilinen Sınırlamalar
 
-- **Thread-unsafe** - Mutex eklenene kadar çok-thread ortamda güvensiz (Person 3 yapacak)
 - **No Realloc** - `realloc()` uygulanmamıştır
-- **Manual cleanup** - Garbage collection yoktur
+- **Manual cleanup** - Garbage collection yoktur; bellek manuel olarak `my_free` ile bırakılır.
+- **Allocator eğitim amaçlıdır** - Üretim ortamı için tasarlanmamıştır.
 
-## 📈 Performans İpuçları
+## 📈 Performans Değerlendirmesi
 
-| Durum | Önerilen Strateji |
-|-------|-------------------|
-| Hızlı tahsis isteniyor | First-Fit |
-| Bellek verimliliği önemli | Best-Fit + Coalescing |
-| Yoğun malloc/free | First-Fit (daha az tarama) |
+Test programı 8 thread oluşturur. Her thread 2000 kez allocation/free işlemi yapar.
+
+Örnek çıktı:
+
+```text
+[PERF] 8 thread x 2000 iterasyon: ... us
+```
+
+Bu ölçüm, mutex korumalı allocator çağrılarının çok threadli kullanım altında çalıştığını gösterir.
 
 ## 📝 Test Senaryoları
 
-Person 3 tarafından yazılacak test senaryoları:
+`tests/test_allocator.c` içinde bulunan testler:
+
 - Basic allocation/free
-- Block splitting
-- Block coalescing
+- `calloc` sıfırlama kontrolü
+- 0 byte allocation
+- Çok büyük allocation
+- `NULL` free
 - Double-free detection
-- Invalid pointer detection
 - Memory leak detection
 - Thread safety
 - Fragmentation analysis
+- Performance measurement
+
+Double-free testinde hata mesajı görülmesi normaldir; bu mesaj kontrolün çalıştığını gösterir.
+
+## Hata Yönetimi ve Loglama
+
+- Hatalar `stderr` üzerinden yazdırılır.
+- Gerekli yerlerde `perror` kullanılır.
+- Test adımları `allocator_test.log` dosyasına yazılır.
+- `allocator_test.log` çalışma çıktısıdır, GitHub'a yüklenmesi gerekmez.
+
+## Karşılaşılan Problemler
+
+Mevcut `.c` ve `.h` dosyalarına dokunulmaması gerektiği için mutex doğrudan `allocator_ops.c` içine eklenmedi. Bunun yerine Makefile ile raw sembol yaklaşımı kullanıldı. Public `my_malloc`, `my_free`, `my_calloc` fonksiyonları `allocator_threadsafe.c` içinde mutex ile sarıldı.
+
+Terminal arayüzünde ANSI renk kodları sağ çerçeveyi bozabiliyordu. Bu sorun görünür UTF-8 karakter genişliği hesaplanarak çözüldü.
 
 ---
 
 ## 📖 Kaynak Kodları
 
-- `allocator_core.c` - Çekirdek (300 satır)
-- `allocator_ops.c` - Operasyonlar (300 satır)
-- `allocator_safety.c` - Güvenlik (150 satır)
-- **Toplam**: ~750 satır üretken kod
+- `include/allocator.h` - Ortak veri yapıları, sabitler ve fonksiyon prototipleri
+- `include/allocator_threadsafe.h` - Global mutex ve thread-safe katman bildirimi
+- `include/allocator_terminal_ui.h` - Terminal arayüz fonksiyon bildirimi
+- `src/allocator_core.c` - Heap başlangıcı, block list, free list ve pointer dönüşümleri
+- `src/allocator_ops.c` - `my_malloc`, `my_free`, `my_calloc`, placement strategy, splitting, coalescing
+- `src/allocator_safety.c` - Invalid free, double-free ve bellek sızıntısı kontrolleri
+- `src/allocator_debug.c` - Fragmentation ve bellek istatistikleri
+- `src/allocator_threadsafe.c` - Mutex ile korunan public allocator API wrapper'ları
+- `src/allocator_terminal_ui.c` - ANSI terminal arayüzü ve canlı demo thread'i
+- `tests/test_allocator.c` - Otomatik testler, thread testi ve performans ölçümü
+- `Makefile` - Derleme, test, çalıştırma ve temizleme komutları
