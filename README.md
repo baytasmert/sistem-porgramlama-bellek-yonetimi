@@ -5,14 +5,28 @@ Sistem Programlama 2026 - Bellek Yönetimi - Dönem Sonu Projesi
 ## 📌 Hızlı Başlangıç
 
 ```bash
+
+sudo apt update
+sudo apt install build-essential
+
+#Temizle
+make clean
+
+#Testleri çalıştır:
+make test
+
 # Projeyi derle
 make
+
+# Terminal arayüzünü aç
+make run
 
 # Test programını çalıştır
 ./test_allocator
 
 # İstatistikleri görmek için
 allocator_print_stats();
+
 ```
 
 ## 📚 Dokümantasyon
