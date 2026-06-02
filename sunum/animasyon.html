@@ -104,6 +104,34 @@
     border-radius: 5px;
   }
 
+  /* --- Bağlı liste panelleri --- */
+  .lists { display:flex; gap:16px; margin:16px 0; }
+  .list-panel {
+    flex:1; background:#0f1626; border-radius:10px; padding:12px 14px;
+    border:1px solid rgba(255,255,255,0.07);
+  }
+  .list-title { font-size:0.8rem; letter-spacing:0.5px; margin-bottom:10px; font-weight:700; }
+  .list-title.free { color:#66bb6a; }
+  .list-title.all { color:#42a5f5; }
+  .chain { display:flex; align-items:center; flex-wrap:wrap; gap:4px; min-height:46px; }
+  .head-tag {
+    font-size:0.62rem; font-weight:700; color:#1a1a2e;
+    background:#ffc107; border-radius:6px; padding:3px 7px; margin-right:2px;
+  }
+  .node {
+    background:linear-gradient(180deg,#66bb6a,#43a047); color:#0f1626;
+    border-radius:7px; padding:6px 10px; font-weight:700; font-size:0.82rem;
+    display:flex; flex-direction:column; align-items:center; line-height:1.1;
+    animation:popin 0.4s ease;
+  }
+  .node.alloc { background:linear-gradient(180deg,#42a5f5,#1565c0); color:#fff; }
+  .node.leak { outline:2px solid #ff5252; }
+  .node small { font-size:0.6rem; opacity:0.75; font-weight:600; }
+  .arrow { color:#9aa5b1; font-size:1.05rem; font-weight:700; }
+  .null-tag { color:#607d8b; font-size:0.72rem; font-style:italic; }
+  .empty-tag { color:#607d8b; font-size:0.8rem; font-style:italic; }
+  @keyframes popin { from{transform:scale(0.6); opacity:0;} to{transform:scale(1); opacity:1;} }
+
   .stats {
     display: flex;
     gap: 16px;
@@ -144,6 +172,17 @@
     <div class="heap-label">HEAP (BELLEK HAVUZU)</div>
     <div class="heap" id="heap"></div>
 
+    <div class="lists">
+      <div class="list-panel">
+        <div class="list-title free">🟩 FREE LIST (boş bloklar zinciri)</div>
+        <div class="chain" id="freeList"></div>
+      </div>
+      <div class="list-panel">
+        <div class="list-title all">📋 TÜM BLOKLAR (all-list · adres sırası)</div>
+        <div class="chain" id="allList"></div>
+      </div>
+    </div>
+
     <div class="narrator" id="narrator">
       <span class="icon">👋</span>
       <span id="narratorText">Başlamak için <b>"Sonraki Adım"</b> ya da <b>"Otomatik Oynat"</b> butonuna bas.</span>
@@ -173,46 +212,67 @@
 <script>
 // Her adım: heap durumu + anlatım
 const TOTAL = 512;
+// A=Alloc(dolu)  F=Free(boş)  ·  freeList = head'den kuyruğa (yeni eklenen başa gelir)
 const steps = [
   {
     blocks: [{size:512, free:true}],
-    icon:"🏁", text:"<b>allocator_init()</b> — Program OS'ten <span class='code'>sbrk()</span> ile tek parça <b>512 byte</b> boş blok aldı. Free list'te bekliyor."
+    freeList:[512],
+    allList:[{s:512,a:false}],
+    icon:"🏁", text:"<b>allocator_init()</b> — OS'ten <span class='code'>sbrk()</span> ile tek <b>512B</b> boş blok alındı. Free list'te 1 düğüm var, all-list'te 1 blok."
   },
   {
     blocks: [{size:512, free:true, highlight:true}],
-    icon:"🔍", text:"<b>my_malloc(112)</b> çağrıldı. Strateji (<span class='code'>first_fit</span>) free list'i gezip uygun bloğu buluyor... ✅ 512'lik blok yeterli!"
+    freeList:[512],
+    allList:[{s:512,a:false}],
+    icon:"🔍", text:"<b>my_malloc(112)</b> — <span class='code'>first_fit</span> free list'i baştan gezer: 512 ≥ 112 ✅. Bu düğüm seçildi."
   },
   {
     blocks: [{size:112, free:false}, {size:384, free:true, split:true}],
-    icon:"✂️", text:"<b>split_block()</b> — Blok çok büyük! 112 verildi, kalan <b>~384 byte</b> yeni boş blok olarak free list'e döndü. (internal fragmentation azalır)"
+    freeList:[384],
+    allList:[{s:112,a:true}, {s:384,a:false}],
+    icon:"✂️", text:"<b>split_block()</b> — 512 ikiye bölündü. Free list'ten <b>512 çıktı</b>, yeni <b>384 düğümü eklendi</b>. All-list artık 2 blok (112 DOLU + 384 BOŞ)."
   },
   {
     blocks: [{size:112, free:false}, {size:128, free:false}, {size:240, free:true}],
-    icon:"📦", text:"<b>my_malloc(128)</b> → ikinci blok dolduruldu. Şu an: 2 dolu blok yan yana, sonda hâlâ boş alan var."
+    freeList:[240],
+    allList:[{s:112,a:true}, {s:128,a:true}, {s:240,a:false}],
+    icon:"📦", text:"<b>my_malloc(128)</b> — 384 seçildi, bölündü. Free list'te şimdi tek <b>240</b> düğümü var. All-list: 2 DOLU + 1 BOŞ."
   },
   {
     blocks: [{size:112, free:false}, {size:128, free:false}, {size:96, free:false}, {size:144, free:true}],
-    icon:"📦", text:"<b>my_malloc(96)</b> → üçüncü blok da dolduruldu. Heap giderek doluyor."
+    freeList:[144],
+    allList:[{s:112,a:true}, {s:128,a:true}, {s:96,a:true}, {s:144,a:false}],
+    icon:"📦", text:"<b>my_malloc(96)</b> — Free list'te geriye tek <b>144</b> kaldı. All-list: 3 DOLU + 1 BOŞ blok."
   },
   {
     blocks: [{size:112, free:false}, {size:128, free:true, freed:true}, {size:96, free:false}, {size:144, free:true}],
-    icon:"♻️", text:"<b>my_free(2. blok)</b> — Ortadaki blok boşaltıldı. Önce <b>magic</b> ve <b>double-free</b> kontrolünden geçti ✅, sonra boş işaretlendi."
+    freeList:[128,144],
+    allList:[{s:112,a:true}, {s:128,a:false}, {s:96,a:true}, {s:144,a:false}],
+    icon:"♻️", text:"<b>my_free(2. blok=128)</b> — <span class='code'>add_to_free_list</span> bloğu free list'in <b>BAŞINA</b> ekler → [128 → 144]. (LIFO: en son boşalan başa gelir)"
   },
   {
     blocks: [{size:112, free:true, freed:true}, {size:128, free:true}, {size:96, free:false}, {size:144, free:true}],
-    icon:"♻️", text:"<b>my_free(1. blok)</b> — İlk blok da boşaltıldı. Şimdi yan yana <b>iki boş blok</b> var (1. ve 2.) → birleştirme zamanı!"
+    freeList:[112,128,144],
+    allList:[{s:112,a:false}, {s:128,a:false}, {s:96,a:true}, {s:144,a:false}],
+    icon:"♻️", text:"<b>my_free(1. blok=112)</b> — Yine başa eklendi → free list [112 → 128 → 144]. all-list'te 112 ve 128 yan yana BOŞ → birleşme gelecek."
   },
   {
     blocks: [{size:240, free:true, merged:true}, {size:96, free:false}, {size:144, free:true}],
-    icon:"🔗", text:"<b>coalesce_blocks()</b> — Komşu iki boş blok <b>tek büyük bloğa</b> birleşti (112+128). External fragmentation azaldı!"
+    freeList:[240,144],
+    allList:[{s:240,a:false}, {s:96,a:true}, {s:144,a:false}],
+    icon:"🔗", text:"<b>coalesce_blocks()</b> — 112+128 birleşip <b>240</b> oldu. 128 düğümü free list'ten <b>çıkarıldı</b> → [240 → 144]. all-list 4'ten 3 bloğa düştü."
   },
   {
     blocks: [{size:240, free:true}, {size:96, free:false, leak:true}, {size:144, free:true}],
-    icon:"🔎", text:"<b>allocator_report_memory_leaks()</b> — 3. blok hâlâ DOLU! Kullanıcı free etmeyi unutmuş → <b>SIZINTI</b> olarak raporlanır. 🚨"
+    freeList:[240,144],
+    allList:[{s:240,a:false}, {s:96,a:true,leak:true}, {s:144,a:false}],
+    icon:"🔎", text:"<b>report_memory_leaks()</b> — all-list gezilir; hâlâ DOLU olan <b>96</b> bloğu <b>SIZINTI</b> olarak bulunur. 🚨 (free list'te değil çünkü boşaltılmadı)"
   },
   {
     blocks: [{size:512, free:true, merged:true}],
-    icon:"✅", text:"<b>my_free(3. blok)</b> + coalesce → tüm bloklar birleşti, heap baştaki haline döndü. <b>Sıfır sızıntı!</b> Döngü tamamlandı. 🎉"
+    freeList:[512],
+    allList:[{s:512,a:false}],
+    icon:"✅", text:"<b>my_free(96)</b> + coalesce → her şey tek <b>512</b> bloğa birleşti. Free list ve all-list tek düğüme indi. <b>Sıfır sızıntı!</b> 🎉"
   }
 ];
 
@@ -239,6 +299,32 @@ function render(stepIdx) {
     heap.appendChild(el);
     if (b.free){ freeCount++; freeB+=b.size; } else { allocCount++; usedB+=b.size; }
   });
+
+  // --- FREE LIST çizimi ---
+  const fl = document.getElementById('freeList');
+  fl.innerHTML = '';
+  if (!step.freeList || step.freeList.length === 0) {
+    fl.innerHTML = '<span class="empty-tag">(boş — hiç serbest blok yok)</span>';
+  } else {
+    fl.innerHTML = '<span class="head-tag">HEAD</span>';
+    step.freeList.forEach((sz, i) => {
+      fl.insertAdjacentHTML('beforeend', '<span class="arrow">⇄</span>');
+      fl.insertAdjacentHTML('beforeend', `<span class="node"><span>${sz}B</span><small>boş</small></span>`);
+    });
+    fl.insertAdjacentHTML('beforeend', '<span class="arrow">→</span><span class="null-tag">NULL</span>');
+  }
+
+  // --- ALL LIST çizimi ---
+  const al = document.getElementById('allList');
+  al.innerHTML = '<span class="head-tag">HEAD</span>';
+  step.allList.forEach((b, i) => {
+    if (i > 0) al.insertAdjacentHTML('beforeend', '<span class="arrow">⇄</span>');
+    else al.insertAdjacentHTML('beforeend', '<span class="arrow">→</span>');
+    const cls = 'node' + (b.a ? ' alloc' : '') + (b.leak ? ' leak' : '');
+    const lbl = b.leak ? '🚨 sızıntı' : (b.a ? 'DOLU' : 'boş');
+    al.insertAdjacentHTML('beforeend', `<span class="${cls}"><span>${b.s}B</span><small>${lbl}</small></span>`);
+  });
+  al.insertAdjacentHTML('beforeend', '<span class="arrow">→</span><span class="null-tag">NULL</span>');
 
   document.getElementById('narrator').querySelector('.icon').textContent = step.icon;
   document.getElementById('narratorText').innerHTML = step.text;
