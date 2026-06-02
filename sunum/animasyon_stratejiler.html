@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kişi 2 — First-Fit vs Best-Fit (Yan Yana)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family:'Segoe UI', system-ui, sans-serif;
+    background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);
+    color:#e8e8e8; min-height:100vh;
+    display:flex; flex-direction:column; align-items:center; padding:22px;
+  }
+  h1 {
+    font-size:1.7rem;
+    background:linear-gradient(90deg,#ff9800,#ffc107);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    margin-bottom:2px;
+  }
+  .subtitle { color:#9aa5b1; font-size:0.92rem; margin-bottom:16px; }
+
+  .request-bar {
+    background:rgba(255,193,7,0.12);
+    border:1px solid #ffc107; border-radius:10px;
+    padding:10px 22px; font-size:1.15rem; margin-bottom:18px;
+  }
+  .request-bar b { color:#ffc107; font-size:1.4rem; }
+
+  .panels { display:flex; gap:18px; width:1000px; max-width:97vw; }
+  .panel {
+    flex:1; background:rgba(255,255,255,0.04);
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius:14px; padding:18px;
+  }
+  .panel-title { font-size:1.15rem; font-weight:700; margin-bottom:4px; }
+  .panel-desc { font-size:0.78rem; color:#9aa5b1; margin-bottom:14px; min-height:32px; }
+  .ff .panel-title { color:#ffca28; }
+  .bf .panel-title { color:#66bb6a; }
+
+  .blocks { display:flex; flex-direction:column; gap:8px; }
+  .block {
+    height:46px; border-radius:8px;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 14px; font-weight:600;
+    background:linear-gradient(180deg,#66bb6a,#43a047); color:#0f1626;
+    position:relative; transition:all 0.45s ease;
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,0.15);
+  }
+  .block .name { font-size:0.8rem; opacity:0.7; }
+  .block .size { font-size:1.05rem; }
+  .block .badge {
+    position:absolute; right:-6px; top:-9px;
+    font-size:0.65rem; padding:2px 8px; border-radius:10px;
+    font-weight:700; opacity:0; transform:scale(0.8); transition:all 0.3s;
+  }
+  .block.scanning {
+    outline:3px solid #fff; outline-offset:2px;
+    transform:scale(1.03); box-shadow:0 0 22px rgba(255,255,255,0.4);
+  }
+  .block.rejected { opacity:0.35; filter:grayscale(0.6); }
+  .block.candidate { background:linear-gradient(180deg,#ffd54f,#ffb300); }
+  .block.candidate .badge { opacity:1; transform:scale(1); background:#ff6f00; color:#fff; }
+  .block.chosen {
+    background:linear-gradient(180deg,#42a5f5,#1565c0); color:#fff;
+    outline:3px solid #ffc107; outline-offset:2px;
+    box-shadow:0 0 26px rgba(66,165,245,0.7);
+  }
+  .block.chosen .badge { opacity:1; transform:scale(1); background:#ffc107; color:#1a1a2e; }
+  .block .waste {
+    position:absolute; right:14px; bottom:-20px;
+    font-size:0.68rem; color:#ff8a80; font-weight:700; opacity:0;
+    transition:opacity 0.4s;
+  }
+  .block.chosen .waste { opacity:1; }
+
+  .result {
+    margin-top:18px; padding:10px; border-radius:8px;
+    background:rgba(0,0,0,0.25); font-size:0.85rem; min-height:42px;
+    text-align:center; opacity:0; transition:opacity 0.4s;
+  }
+  .result.show { opacity:1; }
+  .ff .result b { color:#ffca28; }
+  .bf .result b { color:#66bb6a; }
+
+  .narrator {
+    margin:18px 0 4px; width:1000px; max-width:97vw; min-height:50px;
+    background:rgba(255,152,0,0.08); border-left:4px solid #ff9800;
+    border-radius:8px; padding:12px 16px; font-size:1rem;
+    display:flex; align-items:center; gap:10px;
+  }
+  .narrator .icon { font-size:1.35rem; }
+  .code { font-family:Consolas,monospace; color:#ffc107; background:rgba(0,0,0,0.3); padding:1px 7px; border-radius:5px; }
+
+  .controls { margin-top:14px; display:flex; gap:12px; }
+  button {
+    background:linear-gradient(90deg,#ff9800,#f57c00); border:none; color:#1a1a2e;
+    font-weight:700; font-size:0.95rem; padding:12px 26px; border-radius:10px;
+    cursor:pointer; transition:transform 0.15s, box-shadow 0.15s;
+  }
+  button:hover { transform:translateY(-2px); box-shadow:0 6px 18px rgba(255,152,0,0.4); }
+  button:disabled { opacity:0.4; cursor:not-allowed; transform:none; box-shadow:none; }
+  button.ghost { background:transparent; border:1px solid #ff9800; color:#ff9800; }
+  .step-indicator { margin-top:12px; color:#9aa5b1; font-size:0.8rem; }
+</style>
+</head>
+<body>
+  <h1>⭐ First-Fit vs Best-Fit — Aynı Anda Karşılaştırma</h1>
+  <div class="subtitle">Aynı boş bloklara aynı istek geliyor; iki strateji farklı blok seçiyor.</div>
+
+  <div class="request-bar">📥 İstek: <b>100 byte</b> lazım</div>
+
+  <div class="panels">
+    <div class="panel ff">
+      <div class="panel-title">🏃 FIRST-FIT</div>
+      <div class="panel-desc">"İlk uyan bloğu hemen al, durma."</div>
+      <div class="blocks" id="ffBlocks"></div>
+      <div class="result" id="ffResult"></div>
+    </div>
+    <div class="panel bf">
+      <div class="panel-title">🎯 BEST-FIT</div>
+      <div class="panel-desc">"Hepsini gez, en az israf edeni seç."</div>
+      <div class="blocks" id="bfBlocks"></div>
+      <div class="result" id="bfResult"></div>
+    </div>
+  </div>
+
+  <div class="narrator" id="narrator">
+    <span class="icon">👋</span>
+    <span id="narratorText"><b>"Sonraki Adım"</b> ya da <b>"Otomatik Oynat"</b> ile başla.</span>
+  </div>
+
+  <div class="controls">
+    <button id="btnNext" onclick="next()">Sonraki Adım ▶</button>
+    <button id="btnAuto" class="ghost" onclick="toggleAuto()">⏯ Otomatik Oynat</button>
+    <button id="btnReset" class="ghost" onclick="reset()">↺ Baştan</button>
+  </div>
+  <div class="step-indicator" id="stepIndicator">Adım 0</div>
+
+<script>
+const REQ = 100;
+const BLOCKS = [
+  {name:"Blok A", size:120},
+  {name:"Blok B", size:105},
+  {name:"Blok C", size:500},
+  {name:"Blok D", size:110},
+];
+
+// Her adım: ffState + bfState + anlatım
+// ff: {scan, chosen}  bf: {scan, best, chosen}
+const steps = [
+  { ff:{scan:-1,chosen:-1}, bf:{scan:-1,best:-1,chosen:-1},
+    icon:"🔎", text:"Free list'te 4 boş blok var: 120, 105, 500, 110. İkisi de baştan taramaya başlıyor. İstek: <b>100 byte</b>." },
+
+  { ff:{scan:0,chosen:-1}, bf:{scan:0,best:0,chosen:-1},
+    icon:"①", text:"<b>Blok A (120):</b> 100'den büyük mü? ✅ Evet. → First-fit: <span class='code'>BULDUM, dururum!</span> · Best-fit: aday olarak not eder, ama <span class='code'>taramaya devam</span>." },
+
+  { ff:{scan:0,chosen:0}, bf:{scan:1,best:1,chosen:-1},
+    icon:"②", text:"First-fit <b>A'yı seçti ve DURDU</b> (diğerlerine bakmaz). · Best-fit <b>Blok B (105)</b>'ye baktı: 105 < 120, daha küçük ve yeterli → <span class='code'>yeni en iyi aday B</span>." },
+
+  { ff:{scan:0,chosen:0}, bf:{scan:2,best:1,chosen:-1},
+    icon:"③", text:"Best-fit <b>Blok C (500)</b>'ye baktı: yeterli ama 500 ≫ 105, çok büyük → <span class='code'>reddet</span>, en iyi hâlâ B." },
+
+  { ff:{scan:0,chosen:0}, bf:{scan:3,best:1,chosen:-1},
+    icon:"④", text:"Best-fit <b>Blok D (110)</b>'ye baktı: 110 > 105, B'den büyük → <span class='code'>reddet</span>. Tarama bitti, en iyi = B." },
+
+  { ff:{scan:0,chosen:0}, bf:{scan:4,best:1,chosen:1},
+    icon:"🏁", text:"<b>SONUÇ:</b> First-fit → <b>Blok A (120)</b> seçti, israf = <b>20 byte</b>. · Best-fit → <b>Blok B (105)</b> seçti, israf = <b>5 byte</b>. Best-fit daha az israf etti! Ama 4 bloğun hepsini gezdi (daha yavaş)." },
+];
+
+let cur = 0, autoTimer = null;
+
+function buildPanel(containerId) {
+  const c = document.getElementById(containerId);
+  c.innerHTML = '';
+  BLOCKS.forEach((b,i) => {
+    const el = document.createElement('div');
+    el.className = 'block';
+    el.id = containerId + i;
+    el.innerHTML = `<span class="name">${b.name}</span><span class="size">${b.size} B</span>
+                    <span class="badge">en iyi aday</span>
+                    <span class="waste"></span>`;
+    c.appendChild(el);
+  });
+}
+
+function applyState(prefix, st, isBest) {
+  BLOCKS.forEach((b,i) => {
+    const el = document.getElementById(prefix + i);
+    el.className = 'block';
+    el.querySelector('.waste').textContent = '';
+    el.querySelector('.badge').textContent = 'en iyi aday';
+
+    if (st.chosen === i) {
+      el.classList.add('chosen');
+      el.querySelector('.badge').textContent = '✅ SEÇİLDİ';
+      el.querySelector('.waste').textContent = 'israf: ' + (b.size - REQ) + ' B';
+    } else if (isBest && st.best === i && st.chosen === -1 && st.scan >= i) {
+      el.classList.add('candidate');
+    } else if (st.scan === i && st.chosen === -1) {
+      el.classList.add('scanning');
+    } else if (st.chosen !== -1 && i !== st.chosen) {
+      // first-fit durduktan sonra kalanlar gri
+      if (!isBest && i > st.chosen) el.classList.add('rejected');
+    } else if (isBest && st.scan > i && st.best !== i) {
+      el.classList.add('rejected');
+    }
+  });
+}
+
+function render(idx) {
+  const s = steps[idx];
+  buildPanel('ffBlocks'); buildPanel('bfBlocks');
+  applyState('ffBlocks', s.ff, false);
+  applyState('bfBlocks', s.bf, true);
+
+  const ffR = document.getElementById('ffResult');
+  const bfR = document.getElementById('bfResult');
+  if (s.ff.chosen !== -1) {
+    ffR.classList.add('show');
+    ffR.innerHTML = `Seçilen: <b>${BLOCKS[s.ff.chosen].name} (${BLOCKS[s.ff.chosen].size}B)</b> · İsraf: <b>${BLOCKS[s.ff.chosen].size-REQ}B</b> · ⚡ Hızlı (1 blokta durdu)`;
+  } else { ffR.classList.remove('show'); ffR.innerHTML=''; }
+  if (s.bf.chosen !== -1) {
+    bfR.classList.add('show');
+    bfR.innerHTML = `Seçilen: <b>${BLOCKS[s.bf.chosen].name} (${BLOCKS[s.bf.chosen].size}B)</b> · İsraf: <b>${BLOCKS[s.bf.chosen].size-REQ}B</b> · 🐢 4 blok gezdi`;
+  } else { bfR.classList.remove('show'); bfR.innerHTML=''; }
+
+  document.getElementById('narrator').querySelector('.icon').textContent = s.icon;
+  document.getElementById('narratorText').innerHTML = s.text;
+  document.getElementById('stepIndicator').textContent = `Adım ${idx} / ${steps.length-1}`;
+  document.getElementById('btnNext').disabled = (idx >= steps.length-1);
+}
+
+function next(){ if(cur<steps.length-1){cur++; render(cur);} if(cur>=steps.length-1 && autoTimer) toggleAuto(); }
+function reset(){ cur=0; render(0); if(autoTimer) toggleAuto(); document.getElementById('btnNext').disabled=false; }
+function toggleAuto(){
+  const btn=document.getElementById('btnAuto');
+  if(autoTimer){ clearInterval(autoTimer); autoTimer=null; btn.textContent='⏯ Otomatik Oynat'; }
+  else { btn.textContent='⏸ Durdur';
+    autoTimer=setInterval(()=>{ if(cur>=steps.length-1){cur=0; render(0);} else next(); }, 3000);
+  }
+}
+render(0);
+</script>
+</body>
+</html>

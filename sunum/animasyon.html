@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kişi 2 — Bellek Yöneticisi Animasyonu</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    color: #e8e8e8;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px;
+  }
+  h1 {
+    font-size: 1.8rem;
+    background: linear-gradient(90deg, #ff9800, #ffc107);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 4px;
+  }
+  .subtitle { color: #9aa5b1; font-size: 0.95rem; margin-bottom: 20px; }
+
+  .stage {
+    width: 920px;
+    max-width: 95vw;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 24px;
+  }
+
+  .heap-label { font-size: 0.85rem; color: #9aa5b1; margin-bottom: 8px; letter-spacing: 1px; }
+
+  .heap {
+    display: flex;
+    gap: 4px;
+    height: 90px;
+    background: #0f1626;
+    border-radius: 10px;
+    padding: 6px;
+    overflow: hidden;
+  }
+
+  .block {
+    height: 100%;
+    border-radius: 7px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #0f1626;
+    transition: all 0.7s cubic-bezier(.65,.05,.36,1);
+    overflow: hidden;
+    white-space: nowrap;
+    position: relative;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15);
+  }
+  .block .hdr {
+    font-size: 0.6rem;
+    background: rgba(0,0,0,0.25);
+    color: #fff;
+    width: 100%;
+    text-align: center;
+    padding: 2px 0;
+  }
+  .block .body { flex: 1; display:flex; align-items:center; justify-content:center; flex-direction:column; }
+  .block .sz { font-size: 0.95rem; }
+  .block .tag { font-size: 0.62rem; opacity: 0.8; }
+
+  .free { background: linear-gradient(180deg, #66bb6a, #43a047); }
+  .alloc { background: linear-gradient(180deg, #42a5f5, #1e88e5); color: #fff; }
+  .alloc .hdr { background: rgba(0,0,0,0.3); }
+  .splitting { animation: pulse 0.6s ease; }
+  .merging { animation: glow 0.8s ease; }
+
+  @keyframes pulse { 0%,100%{transform:scaleY(1);} 50%{transform:scaleY(1.12); box-shadow:0 0 24px #ffc107;} }
+  @keyframes glow { 0%,100%{filter:brightness(1);} 50%{filter:brightness(1.6); box-shadow:0 0 30px #66bb6a;} }
+
+  .narrator {
+    margin: 18px 0;
+    min-height: 56px;
+    background: rgba(255,152,0,0.08);
+    border-left: 4px solid #ff9800;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 1.02rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .narrator .icon { font-size: 1.4rem; }
+  .code {
+    font-family: 'Consolas', monospace;
+    color: #ffc107;
+    background: rgba(0,0,0,0.3);
+    padding: 2px 8px;
+    border-radius: 5px;
+  }
+
+  .stats {
+    display: flex;
+    gap: 16px;
+    margin-top: 8px;
+    font-size: 0.85rem;
+  }
+  .stat { background: rgba(255,255,255,0.05); border-radius: 8px; padding: 8px 14px; flex:1; text-align:center; }
+  .stat .v { font-size: 1.3rem; font-weight: 700; color: #ffc107; }
+  .stat .l { color: #9aa5b1; font-size: 0.72rem; }
+
+  .controls { margin-top: 22px; display: flex; gap: 12px; }
+  button {
+    background: linear-gradient(90deg, #ff9800, #f57c00);
+    border: none;
+    color: #1a1a2e;
+    font-weight: 700;
+    font-size: 0.95rem;
+    padding: 12px 28px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  button:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(255,152,0,0.4); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; transform:none; box-shadow:none; }
+  button.ghost { background: transparent; border: 1px solid #ff9800; color: #ff9800; }
+
+  .step-indicator { margin-top: 14px; color: #9aa5b1; font-size: 0.8rem; }
+  .legend { display:flex; gap:18px; margin-top:14px; font-size:0.8rem; color:#9aa5b1; }
+  .legend span { display:flex; align-items:center; gap:6px; }
+  .dot { width:14px; height:14px; border-radius:4px; display:inline-block; }
+</style>
+</head>
+<body>
+  <h1>⭐ Kişi 2 — Bellek Yöneticisi Nasıl Çalışıyor?</h1>
+  <div class="subtitle">my_malloc · split · my_free · coalesce · güvenlik kontrolleri</div>
+
+  <div class="stage">
+    <div class="heap-label">HEAP (BELLEK HAVUZU)</div>
+    <div class="heap" id="heap"></div>
+
+    <div class="narrator" id="narrator">
+      <span class="icon">👋</span>
+      <span id="narratorText">Başlamak için <b>"Sonraki Adım"</b> ya da <b>"Otomatik Oynat"</b> butonuna bas.</span>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="v" id="sAlloc">0</div><div class="l">DOLU BLOK</div></div>
+      <div class="stat"><div class="v" id="sFree">1</div><div class="l">BOŞ BLOK</div></div>
+      <div class="stat"><div class="v" id="sUsed">0 B</div><div class="l">KULLANILAN</div></div>
+      <div class="stat"><div class="v" id="sFreeB">512 B</div><div class="l">BOŞ ALAN</div></div>
+    </div>
+
+    <div class="legend">
+      <span><i class="dot" style="background:#43a047"></i> Boş blok (free list)</span>
+      <span><i class="dot" style="background:#1e88e5"></i> Dolu blok (kullanıcıda)</span>
+      <span><i class="dot" style="background:rgba(0,0,0,.4);border:1px solid #555"></i> Header (künye)</span>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button id="btnNext" onclick="next()">Sonraki Adım ▶</button>
+    <button id="btnAuto" class="ghost" onclick="toggleAuto()">⏯ Otomatik Oynat</button>
+    <button id="btnReset" class="ghost" onclick="reset()">↺ Baştan</button>
+  </div>
+  <div class="step-indicator" id="stepIndicator">Adım 0 / 9</div>
+
+<script>
+// Her adım: heap durumu + anlatım
+const TOTAL = 512;
+const steps = [
+  {
+    blocks: [{size:512, free:true}],
+    icon:"🏁", text:"<b>allocator_init()</b> — Program OS'ten <span class='code'>sbrk()</span> ile tek parça <b>512 byte</b> boş blok aldı. Free list'te bekliyor."
+  },
+  {
+    blocks: [{size:512, free:true, highlight:true}],
+    icon:"🔍", text:"<b>my_malloc(112)</b> çağrıldı. Strateji (<span class='code'>first_fit</span>) free list'i gezip uygun bloğu buluyor... ✅ 512'lik blok yeterli!"
+  },
+  {
+    blocks: [{size:112, free:false}, {size:384, free:true, split:true}],
+    icon:"✂️", text:"<b>split_block()</b> — Blok çok büyük! 112 verildi, kalan <b>~384 byte</b> yeni boş blok olarak free list'e döndü. (internal fragmentation azalır)"
+  },
+  {
+    blocks: [{size:112, free:false}, {size:128, free:false}, {size:240, free:true}],
+    icon:"📦", text:"<b>my_malloc(128)</b> → ikinci blok dolduruldu. Şu an: 2 dolu blok yan yana, sonda hâlâ boş alan var."
+  },
+  {
+    blocks: [{size:112, free:false}, {size:128, free:false}, {size:96, free:false}, {size:144, free:true}],
+    icon:"📦", text:"<b>my_malloc(96)</b> → üçüncü blok da dolduruldu. Heap giderek doluyor."
+  },
+  {
+    blocks: [{size:112, free:false}, {size:128, free:true, freed:true}, {size:96, free:false}, {size:144, free:true}],
+    icon:"♻️", text:"<b>my_free(2. blok)</b> — Ortadaki blok boşaltıldı. Önce <b>magic</b> ve <b>double-free</b> kontrolünden geçti ✅, sonra boş işaretlendi."
+  },
+  {
+    blocks: [{size:112, free:true, freed:true}, {size:128, free:true}, {size:96, free:false}, {size:144, free:true}],
+    icon:"♻️", text:"<b>my_free(1. blok)</b> — İlk blok da boşaltıldı. Şimdi yan yana <b>iki boş blok</b> var (1. ve 2.) → birleştirme zamanı!"
+  },
+  {
+    blocks: [{size:240, free:true, merged:true}, {size:96, free:false}, {size:144, free:true}],
+    icon:"🔗", text:"<b>coalesce_blocks()</b> — Komşu iki boş blok <b>tek büyük bloğa</b> birleşti (112+128). External fragmentation azaldı!"
+  },
+  {
+    blocks: [{size:240, free:true}, {size:96, free:false, leak:true}, {size:144, free:true}],
+    icon:"🔎", text:"<b>allocator_report_memory_leaks()</b> — 3. blok hâlâ DOLU! Kullanıcı free etmeyi unutmuş → <b>SIZINTI</b> olarak raporlanır. 🚨"
+  },
+  {
+    blocks: [{size:512, free:true, merged:true}],
+    icon:"✅", text:"<b>my_free(3. blok)</b> + coalesce → tüm bloklar birleşti, heap baştaki haline döndü. <b>Sıfır sızıntı!</b> Döngü tamamlandı. 🎉"
+  }
+];
+
+let cur = 0;
+let autoTimer = null;
+
+function render(stepIdx) {
+  const step = steps[stepIdx];
+  const heap = document.getElementById('heap');
+  heap.innerHTML = '';
+  let allocCount=0, freeCount=0, usedB=0, freeB=0;
+
+  step.blocks.forEach(b => {
+    const el = document.createElement('div');
+    el.className = 'block ' + (b.free ? 'free':'alloc');
+    if (b.split) el.classList.add('splitting');
+    if (b.merged) el.classList.add('merging');
+    el.style.flex = b.size;
+    let tag = b.free ? 'BOŞ' : 'DOLU';
+    if (b.highlight) tag = '👀 aranıyor';
+    if (b.freed) tag = '♻️ boşaltıldı';
+    if (b.leak) tag = '🚨 SIZINTI';
+    el.innerHTML = `<div class="hdr">📋 Header</div><div class="body"><div class="sz">${b.size} B</div><div class="tag">${tag}</div></div>`;
+    heap.appendChild(el);
+    if (b.free){ freeCount++; freeB+=b.size; } else { allocCount++; usedB+=b.size; }
+  });
+
+  document.getElementById('narrator').querySelector('.icon').textContent = step.icon;
+  document.getElementById('narratorText').innerHTML = step.text;
+  document.getElementById('sAlloc').textContent = allocCount;
+  document.getElementById('sFree').textContent = freeCount;
+  document.getElementById('sUsed').textContent = usedB + ' B';
+  document.getElementById('sFreeB').textContent = freeB + ' B';
+  document.getElementById('stepIndicator').textContent = `Adım ${stepIdx} / ${steps.length-1}`;
+  document.getElementById('btnNext').disabled = (stepIdx >= steps.length-1);
+}
+
+function next() {
+  if (cur < steps.length-1) { cur++; render(cur); }
+  if (cur >= steps.length-1 && autoTimer) toggleAuto();
+}
+function reset() {
+  cur = 0; render(0);
+  if (autoTimer) toggleAuto();
+  document.getElementById('btnNext').disabled = false;
+}
+function toggleAuto() {
+  const btn = document.getElementById('btnAuto');
+  if (autoTimer) {
+    clearInterval(autoTimer); autoTimer = null; btn.textContent = '⏯ Otomatik Oynat';
+  } else {
+    btn.textContent = '⏸ Durdur';
+    autoTimer = setInterval(() => {
+      if (cur >= steps.length-1) { cur = 0; render(0); }
+      else next();
+    }, 2600);
+  }
+}
+
+render(0);
+</script>
+</body>
+</html>

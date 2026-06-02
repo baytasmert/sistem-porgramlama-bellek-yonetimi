@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kişi 2 — Sunum Diyagramları</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  * { box-sizing:border-box; }
+  body {
+    font-family:'Segoe UI', system-ui, sans-serif;
+    background:#0f1626; color:#e8e8e8; margin:0; padding:30px 20px 80px;
+  }
+  header { text-align:center; margin-bottom:30px; }
+  h1 {
+    background:linear-gradient(90deg,#ff9800,#ffc107);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    margin:0 0 6px;
+  }
+  .hint { color:#9aa5b1; font-size:0.9rem; }
+  .card {
+    max-width:1000px; margin:0 auto 26px; background:#ffffff;
+    border-radius:14px; padding:22px; box-shadow:0 6px 22px rgba(0,0,0,0.4);
+  }
+  .card h2 {
+    color:#e65100; margin:0 0 14px; font-size:1.25rem;
+    border-bottom:2px solid #ffe0b2; padding-bottom:8px;
+  }
+  .mermaid { text-align:center; }
+  .note { color:#5d4037; font-size:0.82rem; margin-top:10px; font-style:italic; }
+  .toolbar {
+    position:fixed; bottom:0; left:0; right:0; background:rgba(15,22,38,0.95);
+    border-top:1px solid rgba(255,255,255,0.1); padding:10px; text-align:center;
+    font-size:0.82rem; color:#9aa5b1;
+  }
+  .toolbar b { color:#ffc107; }
+  .offline { display:none; max-width:1000px; margin:0 auto 20px; background:#4e342e;
+    color:#ffccbc; padding:14px; border-radius:10px; text-align:center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>⭐ Kişi 2 — Sunum Diyagramları</h1>
+  <div class="hint">Bellek Yönetimi · İşlemler & Güvenlik · Mermaid ile çizildi</div>
+</header>
+
+<div class="offline" id="offlineMsg">
+  ⚠️ Diyagramlar çizilmedi olabilir — bu sayfa internet gerektirir (Mermaid kütüphanesi CDN'den yüklenir).
+  İnternete bağlanıp sayfayı yenile (F5).
+</div>
+
+<div class="card">
+  <h2>1. Bellek Düzeni — Bir Blok Nasıl Görünür?</h2>
+  <pre class="mermaid">
+flowchart LR
+    subgraph BLOCK["BIR BELLEK BLOGU"]
+        H["HEADER (kunye)<br/>size<br/>is_free<br/>magic<br/>next/prev_free<br/>next/prev_all"]
+        P["PAYLOAD<br/>(kullanici verisi)<br/>my_malloc bu adresi dondurur"]
+    end
+    H -->|"block + 1"| P
+    P -.->|"ptr - 1"| H
+    style H fill:#ffe0b2,stroke:#e65100,stroke-width:2px
+    style P fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+  </pre>
+  <div class="note">Magic: 0xC0FFEE01 = DOLU · 0xC0FFEE02 = BOS</div>
+</div>
+
+<div class="card">
+  <h2>3. my_malloc() Akış Şeması</h2>
+  <pre class="mermaid">
+flowchart TD
+    START([my_malloc cagrildi]) --> Z{size == 0?}
+    Z -->|Evet| RETNULL1[NULL dondur]
+    Z -->|Hayir| INIT{Allocator kuruldu mu?}
+    INIT -->|Hayir| DOINIT["allocator_init - OS 64KB K1"]
+    INIT -->|Evet| ALIGN
+    DOINIT --> ALIGN["align_size - 16 kati K1"]
+    ALIGN --> STRAT["Strateji ile blok bul K2"]
+    STRAT --> FOUND{Bos blok bulundu mu?}
+    FOUND -->|Evet| SPLIT["split_block - gerekirse bol K2"]
+    SPLIT --> REMOVE["free list ten cikar K1"]
+    REMOVE --> MARK["is_free=0, magic=ALLOC"]
+    MARK --> STATS1["istatistik +boyut"]
+    STATS1 --> RET1([payload adresi dondur])
+    FOUND -->|Hayir| OS["request_from_os K1"]
+    OS --> OSCHK{Basarili mi?}
+    OSCHK -->|Hayir| RETNULL2[NULL dondur]
+    OSCHK -->|Evet| MARK
+    style START fill:#fff3cd,stroke:#ff9800,stroke-width:2px
+    style RET1 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style STRAT fill:#ffe0b2
+    style SPLIT fill:#ffe0b2
+  </pre>
+</div>
+
+<div class="card">
+  <h2>4. my_free() Akış Şeması — Güvenlik Kapıları</h2>
+  <pre class="mermaid">
+flowchart TD
+    START([my_free ptr cagrildi]) --> NULLCHK{ptr == NULL?}
+    NULLCHK -->|Evet| DONE1([Hicbir sey yapma])
+    NULLCHK -->|Hayir| TOBLOCK["payload_to_block + magic kontrol K1"]
+    TOBLOCK --> VALID{Magic gecerli mi?}
+    VALID -->|Hayir| ERR1["HATA: gecersiz pointer"]
+    VALID -->|Evet| DBLCHK{Blok zaten bos mu?}
+    DBLCHK -->|Evet| ERR2["HATA: DOUBLE-FREE"]
+    DBLCHK -->|Hayir| STATS["istatistik -boyut"]
+    STATS --> ADDFREE["add_to_free_list K1"]
+    ADDFREE --> COAL["coalesce_blocks - birlestir K2"]
+    COAL --> DONE2([Bitti])
+    style START fill:#fff3cd,stroke:#ff9800,stroke-width:2px
+    style ERR1 fill:#ffcdd2,stroke:#c62828,stroke-width:2px
+    style ERR2 fill:#ffcdd2,stroke:#c62828,stroke-width:2px
+    style DONE2 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style COAL fill:#ffe0b2
+  </pre>
+</div>
+
+<div class="card">
+  <h2>5. Block Splitting (Bölme) — Önce / Sonra</h2>
+  <pre class="mermaid">
+flowchart TB
+    subgraph ONCE["ONCE: my_malloc 112 byte ister"]
+        B1["H | 512 byte BOS blok"]
+    end
+    ONCE --> ARROW["split_block boler K2"]
+    subgraph SONRA["SONRA: 112 verildi, 400 bosta"]
+        B2["H | 112 DOLU"]
+        B3["H | ~400 BOS - free list e doner"]
+        B2 --- B3
+    end
+    ARROW --> SONRA
+    style B1 fill:#c8e6c9,stroke:#2e7d32
+    style B2 fill:#bbdefb,stroke:#1565c0,stroke-width:2px
+    style B3 fill:#c8e6c9,stroke:#2e7d32
+    style ARROW fill:#ffe0b2,stroke:#e65100
+  </pre>
+  <div class="note">Amac: internal fragmentation (ic israf) azaltmak.</div>
+</div>
+
+<div class="card">
+  <h2>6. Block Coalescing (Birleştirme) — 2 Adım</h2>
+  <pre class="mermaid">
+flowchart TB
+    subgraph S0["BASLANGIC: ortadaki blok free edildi"]
+        A0["A BOS"] --- M0["B DOLU->bosaltildi"] --- C0["C BOS"]
+    end
+    S0 --> STEP1["ADIM 1: soldaki A bos mu? A, B yi yutar K2"]
+    subgraph S1["ADIM 1 SONRASI"]
+        AB["A+B birlesti"] --- C1["C BOS"]
+    end
+    STEP1 --> S1
+    S1 --> STEP2["ADIM 2: sagdaki C bos mu? A+B, C yi yutar K2"]
+    subgraph S2["SONUC: tek buyuk bos blok"]
+        ABC["A+B+C = TEK BUYUK BOS BLOK"]
+    end
+    STEP2 --> S2
+    style M0 fill:#bbdefb,stroke:#1565c0
+    style ABC fill:#a5d6a7,stroke:#1b5e20,stroke-width:3px
+  </pre>
+  <div class="note">Amac: external fragmentation (dis israf) azaltmak.</div>
+</div>
+
+<div class="card">
+  <h2>7. First-Fit vs Best-Fit</h2>
+  <pre class="mermaid">
+flowchart TB
+    REQ["Istek: 100 byte lazim"]
+    REQ --> FF & BF
+    subgraph FF["FIRST-FIT (Ilk Uyan)"]
+        F1["120 <- ILK uygun, HEMEN AL"]
+        F2["105"]
+        F3["500"]
+        F1 -.-> F2 -.-> F3
+    end
+    subgraph BF["BEST-FIT (En Iyi Uyan)"]
+        G1["120"]
+        G2["105 <- EN YAKIN, bunu sec"]
+        G3["500"]
+        G1 -.-> G2 -.-> G3
+    end
+    FF --> FFR["Hizli ama israf olabilir"]
+    BF --> BFR["Az israf ama yavas"]
+    style F1 fill:#fff59d,stroke:#f9a825,stroke-width:3px
+    style G2 fill:#a5d6a7,stroke:#1b5e20,stroke-width:3px
+  </pre>
+</div>
+
+<div class="card">
+  <h2>8. Fonksiyon Çağrı Grafiği — Kim Kimi Çağırır?</h2>
+  <pre class="mermaid">
+flowchart LR
+    USER([KULLANICI])
+    USER --> MALLOC["my_malloc *"]
+    USER --> FREE["my_free *"]
+    USER --> CALLOC["my_calloc *"]
+    CALLOC --> MALLOC
+    CALLOC --> MEMSET["memset - sifirla"]
+    MALLOC --> ALIGN2["align_size +"]
+    MALLOC --> INIT2["init +"]
+    MALLOC --> STRAT2["first/best_fit *"]
+    MALLOC --> SPLIT2["split_block *"]
+    MALLOC --> REM2["remove_free_list +"]
+    MALLOC --> OS2["request_from_os +"]
+    FREE --> P2B["payload_to_block +"]
+    FREE --> ADD2["add_to_free_list +"]
+    FREE --> COAL2["coalesce_blocks *"]
+    style MALLOC fill:#ffe0b2,stroke:#e65100,stroke-width:2px
+    style FREE fill:#ffe0b2,stroke:#e65100,stroke-width:2px
+    style CALLOC fill:#ffe0b2,stroke:#e65100,stroke-width:2px
+    style STRAT2 fill:#fff3cd
+    style SPLIT2 fill:#fff3cd
+    style COAL2 fill:#fff3cd
+  </pre>
+  <div class="note">* = Kisi 2 yazdi · + = Kisi 1 yazdi</div>
+</div>
+
+<div class="card">
+  <h2>9. Bir Bloğun Yaşam Döngüsü</h2>
+  <pre class="mermaid">
+stateDiagram-v2
+    [*] --> BOS: init / split sonrasi
+    BOS --> DOLU: my_malloc secer (magic=ALLOC)
+    DOLU --> BOS: my_free (magic=FREE)
+    BOS --> BIRLESMIS: coalesce - komsu bossa
+    BIRLESMIS --> DOLU: tekrar my_malloc
+    DOLU --> HATA: my_free iki kez!
+    HATA --> DOLU: double-free reddedildi
+  </pre>
+</div>
+
+<div class="card">
+  <h2>10. Güvenlik Katmanları (Kişi 2)</h2>
+  <pre class="mermaid">
+flowchart TD
+    PTR["Gelen pointer / blok"] --> L1
+    L1{"1. Magic dogru mu? C0FFEE01/02"}
+    L1 -->|Hayir| X1["Bellek bozulmasi / sahte pointer"]
+    L1 -->|Evet| L2
+    L2{"2. Boyut > 0 mi?"}
+    L2 -->|Hayir| X2["Gecersiz blok"]
+    L2 -->|Evet| L3
+    L3{"3. Zaten bos mu? (free sirasinda)"}
+    L3 -->|Evet| X3["DOUBLE-FREE"]
+    L3 -->|Hayir| OK["Isleme devam"]
+    style X1 fill:#ffcdd2,stroke:#c62828
+    style X2 fill:#ffcdd2,stroke:#c62828
+    style X3 fill:#ffcdd2,stroke:#c62828
+    style OK fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+  </pre>
+</div>
+
+<div class="toolbar">
+  💡 Diyagramı resme çevirmek için: üstüne <b>sağ tık → Resmi farklı kaydet</b> · Yazdırmak/PDF için: <b>Ctrl+P</b>
+</div>
+
+<script>
+  if (window.mermaid) {
+    mermaid.initialize({ startOnLoad:true, theme:'default', flowchart:{ htmlLabels:true, curve:'basis' } });
+  } else {
+    document.getElementById('offlineMsg').style.display = 'block';
+  }
+</script>
+</body>
+</html>
