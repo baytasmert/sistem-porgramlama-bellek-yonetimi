@@ -66,7 +66,7 @@ flowchart LR
 </div>
 
 <div class="card">
-  <h2>3. my_malloc() Akış Şeması</h2>
+  <h2>2. my_malloc() Akış Şeması</h2>
   <pre class="mermaid">
 flowchart TD
     START([my_malloc cagrildi]) --> Z{size == 0?}
@@ -94,7 +94,7 @@ flowchart TD
 </div>
 
 <div class="card">
-  <h2>4. my_free() Akış Şeması — Güvenlik Kapıları</h2>
+  <h2>3. my_free() Akış Şeması — Güvenlik Kapıları</h2>
   <pre class="mermaid">
 flowchart TD
     START([my_free ptr cagrildi]) --> NULLCHK{ptr == NULL?}
@@ -117,7 +117,7 @@ flowchart TD
 </div>
 
 <div class="card">
-  <h2>5. Block Splitting (Bölme) — Önce / Sonra</h2>
+  <h2>4. Block Splitting (Bölme) — Önce / Sonra</h2>
   <pre class="mermaid">
 flowchart TB
     subgraph ONCE["ONCE: my_malloc 112 byte ister"]
@@ -139,7 +139,7 @@ flowchart TB
 </div>
 
 <div class="card">
-  <h2>6. Block Coalescing (Birleştirme) — 2 Adım</h2>
+  <h2>5. Block Coalescing (Birleştirme) — 2 Adım</h2>
   <pre class="mermaid">
 flowchart TB
     subgraph S0["BASLANGIC: ortadaki blok free edildi"]
@@ -162,7 +162,7 @@ flowchart TB
 </div>
 
 <div class="card">
-  <h2>7. First-Fit vs Best-Fit</h2>
+  <h2>6. First-Fit vs Best-Fit</h2>
   <pre class="mermaid">
 flowchart TB
     REQ["Istek: 100 byte lazim"]
@@ -187,7 +187,7 @@ flowchart TB
 </div>
 
 <div class="card">
-  <h2>8. Fonksiyon Çağrı Grafiği — Kim Kimi Çağırır?</h2>
+  <h2>7. Fonksiyon Çağrı Grafiği — Kim Kimi Çağırır?</h2>
   <pre class="mermaid">
 flowchart LR
     USER([KULLANICI])
